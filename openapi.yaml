@@ -1,0 +1,348 @@
+openapi: 3.0.3
+info:
+  title: Carrier Collaboration mit der myleo / dsc
+  version: 0.1.0
+  description: REST-Service description for communication between `myleo / dsc` and `intertrans` systems. The service provider will be `myleo / dsc`
+  contact:
+    email: j.rosenkranz@kukla-spedition.com
+    name: Herr Jan Rosenkranz
+externalDocs:
+  description: ' Find out more about Swagger'
+  url: http://swagger.io
+servers:
+  - url: https://myleo-dcs.com/someService
+security:
+  - basicAuth: []
+paths:
+  /v1/orders/:
+    get:
+      summary: Orders by period
+      tags:
+        - Order
+      description: Get list of orders by period (with shipments)
+      operationId: getOrders
+      parameters:
+        - name: startDate
+          in: query
+          description: Start date
+          required: true
+          schema:
+            type: string
+            format: date
+            description: Beginning of the analyzed period
+            example: '2023-03-01'
+        - name: endDate
+          in: query
+          description: End date
+          required: true
+          schema:
+            type: string
+            format: date
+            description: End of the analyzed period
+            example: '2023-04-01'
+      responses:
+        '200':
+          description: List of orders
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/order'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/serviceException'
+              examples:
+                Bad period:
+                  description: Wrong request period
+                  value:
+                    errorNumber: 500
+                    message: Wrong request period. Start date is greater than end date
+                Bad start date:
+                  description: Unrecognized start date format
+                  value:
+                    errorNumber: 510
+                    message: Unrecognized start date format
+                Bad end date:
+                  description: Unrecognized end date format
+                  value:
+                    errorNumber: 520
+                    message: Unrecognized start date format
+        '404':
+          description: Unknown error
+  /v1/shipment/Status/:
+    post:
+      summary: Set statuses of shipments
+      tags:
+        - Shipment
+      description: Push statuses of shipments
+      operationId: shipmentStatus
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/shipmentStatus'
+      responses:
+        '200':
+          description: Operation successful
+          content:
+            application/json:
+              schema:
+                type: array
+                description: 'Result of setting statuses '
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                      description: shipment id
+                      example: 0037Q00000DVQXaQAP
+                    result:
+                      type: string
+                      description: operation result
+                      enum:
+                        - OK
+                        - ERROR
+        '404':
+          description: Unknown error
+  /v1/shipment/file/:
+    post:
+      summary: Push POD-file of shipment
+      tags:
+        - Shipment
+      description: Send shipment POD file
+      operationId: shipmentFile
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/file'
+      responses:
+        '200':
+          description: Operation successful
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/serviceException'
+              examples:
+                Bad shipment:
+                  description: Shipment not found
+                  value:
+                    errorNumber: 200
+                    message: Shipment not found
+                Bad file type:
+                  description: File type not found
+                  value:
+                    errorNumber: 200
+                    message: File type not found
+        '404':
+          description: Unknown error
+components:
+  schemas:
+    account:
+      type: object
+      description: 'Account data. For example: customer, carrier etc.'
+      required:
+        - name
+        - id
+      properties:
+        name:
+          type: string
+          example: EVONIK SUPERABSORBER MARL
+        id:
+          type: string
+          example: 55e44137-20a0-4c5d-a6dc-135175c67f24
+    order:
+      type: object
+      description: Order data
+      required:
+        - id,customer
+        - consignor
+        - consignee
+        - dateOfDelivery
+        - dateOfService
+      properties:
+        id:
+          type: string
+          description: Unisque order ID. (For exmample UUID)
+          example: 0037Q00000DVQXaQAP
+        customer:
+          $ref: '#/components/schemas/account'
+        shipper:
+          $ref: '#/components/schemas/account'
+        recipient:
+          $ref: '#/components/schemas/account'
+        orderDate:
+          type: string
+          format: date
+          description: Date of order
+          example: '2023-04-01'
+        deliveryDate:
+          type: string
+          format: date
+          description: Date of order delivery
+          example: '2023-04-01'
+        shipments:
+          type: array
+          xml:
+            wrapped: true
+          items:
+            $ref: '#/components/schemas/shipment'
+    shipment:
+      type: object
+      description: Shipment data
+      required:
+        - customerRef
+        - shipperRef
+      xml:
+        name: shipment
+      properties:
+        id:
+          type: string
+          description: Shipment unique ID. (For example UUID)
+          example: 0037Q00000DVQXaQAP
+        customerRef:
+          type: string
+          description: Customer reference
+          example: '4005274883'
+        shipperRef:
+          type: string
+          description: Shipper reference
+          example: '2005353637'
+        readyDate:
+          type: string
+          format: date
+          description: Delivery date of the shipment
+          example: '2023-04-01'
+        good:
+          type: string
+          description: Good description
+          example: harmless goods
+        packageType:
+          type: string
+          description: Package type of shipment
+          example: BB
+          enum:
+            - BB
+            - EP
+        packageQuantity:
+          type: integer
+          format: int32
+          example: 10
+        weight:
+          type: integer
+          format: int32
+          example: '1054'
+    shipmentStatus:
+      type: object
+      description: Shipment status
+      properties:
+        id:
+          type: string
+          description: Shipment ID
+          example: 0037Q00000DVQXaQAP
+        statusDate:
+          type: string
+          format: date
+          description: Status date
+          example: '2023-04-01'
+        status:
+          type: string
+          description: Shipment status
+          enum:
+            - PLAN
+            - START
+            - TRACKING_START
+            - CARRIER_ASSIGN
+            - LOAD_START
+            - LOAD_END
+            - UNLOAD_START
+            - UNLOAD_END
+            - DELAY
+            - RESOURCE_ASSIGN
+            - ABORT
+            - AVIS
+            - ARRIVAL
+            - REFUSED
+            - PARTLY_REFUSED
+            - DELIVERY_DIFFERENCE
+            - LOAD_ORDER
+            - UNLOAD_ORDER
+            - INFORMATION
+            - UNDELIVERABLE
+            - DELIVERY_PROBLEM
+            - 'TRANSPORT_PROBLEM '
+            - ADDRESS_CHANGE
+            - POSITION
+            - PORDELIVERY_PROBLEM
+    file:
+      type: object
+      description: File
+      properties:
+        id:
+          type: string
+          description: shipment ID
+          example: 0037Q00000DVQXaQAP
+        fileType:
+          type: string
+          description: File type (POD, Invoice etc)
+          enum:
+            - POD
+          example: POD
+        name:
+          type: string
+          description: File name
+          example: Muster POD.pdf
+        extension:
+          type: string
+          description: File extension
+          enum:
+            - PDF
+            - JPEG
+            - TIF
+        size:
+          type: integer
+          description: File size in bytes
+          format: int64
+          example: 2045
+        creationDate:
+          type: string
+          format: date-time
+          description: File creation date ( defined by RFC 3339, section 5.6)
+          example: '2017-07-21T17:32:28Z'
+        content:
+          type: string
+          format: byte
+          description: base64-encoded file contents
+          example: UG9seWZvbiB6d2l0c2NoZXJuZCBhw59lbiBNw6R4Y2hlbnMgVsO2Z2VsIFLDvGJlbiwgSm9naHVydCB1bmQgUXVhcms=
+    filetype:
+      type: string
+      description: File type
+      example: POD
+      enum:
+        - POD
+    serviceException:
+      type: object
+      description: Service specific exceptions
+      required:
+        - ErrorNumber
+        - message
+      properties:
+        errorNumber:
+          type: integer
+          format: int32
+          description: Returns a uniqe error number if there is one available
+        message:
+          type: string
+          description: Returns the exceptions message
+  securitySchemes:
+    basicAuth:
+      type: http
+      scheme: basic
